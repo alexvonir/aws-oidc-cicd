@@ -23,4 +23,4 @@ jobs:
       
       - name: Deploy to S3
         run: |
-          aws s3 sync . s3://cicd-deploy-bucket
+          aws s3 cp ./build/my-artifact.zip s3://cicd-deploy-bucket/ --acl private
