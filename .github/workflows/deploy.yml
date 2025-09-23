@@ -32,5 +32,6 @@ jobs:
       
       - name: Upload to S3
         run: |
-          aws s3 cp ./build/my-artifact.zip s3://cicd-deploy-bucket/
-          echo "✅ Successfully uploaded to S3!"
+          # Use the bucket name from GitHub secret (you'll get this from terraform output)
+          aws s3 cp ./build/my-artifact.zip s3://${{ secrets.S3_BUCKET_NAME }}/
+          echo "✅ Successfully uploaded to S3 bucket: ${{ secrets.S3_BUCKET_NAME }}"

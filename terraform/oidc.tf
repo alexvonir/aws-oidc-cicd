@@ -5,6 +5,24 @@ resource "aws_iam_openid_connect_provider" "github" {
   thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
 }
 
+# ========== S3 Bucket for Deployment ==========
+resource "aws_s3_bucket" "cicd_deploy_bucket" {
+  bucket = "${var.bucket_prefix}-cicd-deploy-${random_id.bucket_suffix.hex}"
+}
+
+resource "random_id" "bucket_suffix" {
+  byte_length = 4
+}
+
+resource "aws_s3_bucket_public_access_block" "cicd_deploy_bucket" {
+  bucket = aws_s3_bucket.cicd_deploy_bucket.id
+
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
 # ========== IAM Role for GitHub Actions ==========
 resource "aws_iam_role" "github_actions_role" {
   name = "github-actions-oidc-role"
@@ -20,9 +38,9 @@ resource "aws_iam_role" "github_actions_role" {
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
           StringLike = {
-            # 👇 Replace OWNER/REPO with your GitHub org/user and repo name
+            # Replace with your actual GitHub repo
             "token.actions.githubusercontent.com:sub" = [
-              "repo:${var.github_repo}:ref:refs/heads/main"
+              "repo:${var.github_repo}:ref:refs/heads/main",
             ]
           }
           StringEquals = {
@@ -32,9 +50,14 @@ resource "aws_iam_role" "github_actions_role" {
       }
     ]
   })
+
+  tags = {
+    Name = "GitHub Actions OIDC Role"
+    Purpose = "CICD Pipeline"
+  }
 }
 
-# ========== IAM Policy for Deployment ==========
+# ========== IAM Policy for S3 Deployment ==========
 resource "aws_iam_policy" "s3_deploy" {
   name        = "github-actions-s3-deploy-policy"
   description = "Allow GitHub Actions to deploy to S3"
@@ -48,19 +71,27 @@ resource "aws_iam_policy" "s3_deploy" {
           "s3:PutObject",
           "s3:PutObjectAcl",
           "s3:GetObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          "${aws_s3_bucket.cicd_deploy_bucket.arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "s3:ListBucket"
         ]
         Resource = [
-          "arn:aws:s3:::cicd-oidc-bucket",
-          "arn:aws:s3:::cicd-oidc-bucket/*"
+          aws_s3_bucket.cicd_deploy_bucket.arn
         ]
       }
     ]
   })
 }
 
-# ========== Attach policy to role ==========
-resource "aws_iam_role_policy_attachment" "attach" {
+# ========== Attach S3 policy to role ==========
+resource "aws_iam_role_policy_attachment" "s3_attach" {
   role       = aws_iam_role.github_actions_role.name
   policy_arn = aws_iam_policy.s3_deploy.arn
 }
