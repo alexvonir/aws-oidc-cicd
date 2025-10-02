@@ -11,8 +11,6 @@ permissions:
 jobs:
   deploy:
     runs-on: [self-hosted, my-runner]
-    env:
-      PATH: /home/github/.local/bin:${{ env.PATH }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
