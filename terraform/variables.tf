@@ -14,5 +14,5 @@ variable "github_audience" {
 variable "bucket_prefix" {
   description = "Prefix for S3 bucket name to ensure uniqueness"
   type        = string
-  default     = "alexvoniroks"  # Replace with your initials or company name
+  default     = "alexvonir"  # Replace with your initials or company name
 }
