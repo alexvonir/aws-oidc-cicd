@@ -11,12 +11,8 @@ permissions:
 
 jobs:
   deploy:
-<<<<<<< HEAD
-    runs-on: [self-hosted, my-runner]
-=======
     runs-on: self-hosted
     
->>>>>>> c0d3859 (Modify deploy.yml)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
