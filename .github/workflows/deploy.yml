@@ -1,4 +1,5 @@
 name: Deploy to S3 via OIDC
+
 on:
   push:
     branches: [main]
@@ -10,28 +11,161 @@ permissions:
 
 jobs:
   deploy:
+<<<<<<< HEAD
     runs-on: [self-hosted, my-runner]
+=======
+    runs-on: self-hosted
+    
+>>>>>>> c0d3859 (Modify deploy.yml)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       
+      - name: Display runner information
+        run: |
+          echo "🖥️  Runner Information:"
+          echo "Runner name: $RUNNER_NAME"
+          echo "Runner OS: $RUNNER_OS"
+          echo "Hostname: $(hostname)"
+          echo "User: $(whoami)"
+          echo "Working directory: $(pwd)"
+          echo ""
+          echo "📊 System Resources:"
+          echo "CPU cores: $(nproc)"
+          echo "Memory: $(free -h | grep Mem | awk '{print $2}')"
+          echo "Disk space: $(df -h . | tail -1 | awk '{print $4}' | xargs)"
+      
+      - name: Display GitHub context
+        run: |
+          echo "📝 GitHub Context:"
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit SHA: ${{ github.sha }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Run ID: ${{ github.run_id }}"
+          echo "Run number: ${{ github.run_number }}"
+      
+      - name: Check required tools
+        run: |
+          echo "🔧 Checking installed tools..."
+          command -v zip || echo "⚠️  zip not found"
+          command -v unzip || echo "⚠️  unzip not found"
+          command -v aws || echo "⚠️  AWS CLI not found"
+          command -v jq || echo "⚠️  jq not found"
+          echo ""
+          if command -v aws &> /dev/null; then
+            echo "AWS CLI version: $(aws --version)"
+          fi
+      
       - name: Create artifact for testing
         run: |
           mkdir -p build
-          echo "OIDC Test - $(date)" > build/index.html
-          echo "Repository: ${{ github.repository }}" >> build/index.html
-          echo "Commit: ${{ github.sha }}" >> build/index.html
-          zip -r build/my-artifact.zip build/
+          echo "<!DOCTYPE html>" > build/index.html
+          echo "<html><head><title>OIDC Lab Test</title></head><body>" >> build/index.html
+          echo "<h1>🚀 OIDC Lab Deployment Test</h1>" >> build/index.html
+          echo "<p><strong>Deployed at:</strong> $(date -u '+%Y-%m-%d %H:%M:%S UTC')</p>" >> build/index.html
+          echo "<p><strong>Repository:</strong> ${{ github.repository }}</p>" >> build/index.html
+          echo "<p><strong>Branch:</strong> ${{ github.ref_name }}</p>" >> build/index.html
+          echo "<p><strong>Commit:</strong> ${{ github.sha }}</p>" >> build/index.html
+          echo "<p><strong>Triggered by:</strong> ${{ github.actor }}</p>" >> build/index.html
+          echo "<p><strong>Run #:</strong> ${{ github.run_number }}</p>" >> build/index.html
+          echo "</body></html>" >> build/index.html
+          
+          # Create a metadata file
+          cat > build/metadata.json << EOF
+          {
+            "deployment_time": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "repository": "${{ github.repository }}",
+            "branch": "${{ github.ref_name }}",
+            "commit": "${{ github.sha }}",
+            "actor": "${{ github.actor }}",
+            "run_id": "${{ github.run_id }}",
+            "run_number": "${{ github.run_number }}"
+          }
+          EOF
+          
+          echo "📦 Creating archive..."
+          zip -r build/my-artifact.zip build/*.html build/*.json
+          
+          echo "✅ Artifact created successfully"
+          ls -lh build/
       
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          role-session-name: GitHub-OIDC
+          role-session-name: GitHub-OIDC-Lab-${{ github.run_id }}
           aws-region: us-east-1
+      
+      - name: Verify AWS credentials
+        run: |
+          echo "🔐 Verifying AWS credentials..."
+          aws sts get-caller-identity
+          echo ""
+          echo "✅ AWS credentials configured successfully"
       
       - name: Upload to S3
         run: |
-          # Use the bucket name from GitHub secret (you'll get this from terraform output)
-          aws s3 cp ./build/my-artifact.zip s3://${{ secrets.S3_BUCKET_NAME }}/
-          echo "✅ Successfully uploaded to S3 bucket: ${{ secrets.S3_BUCKET_NAME }}"
+          BUCKET_NAME="${{ secrets.S3_BUCKET_NAME }}"
+          TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
+          
+          echo "📤 Uploading to S3..."
+          
+          # Upload the artifact with metadata
+          aws s3 cp ./build/my-artifact.zip \
+            "s3://${BUCKET_NAME}/artifacts/my-artifact-${TIMESTAMP}.zip" \
+            --metadata "commit=${{ github.sha }},branch=${{ github.ref_name }},run-id=${{ github.run_id }}"
+          
+          # Upload individual files
+          aws s3 cp ./build/index.html \
+            "s3://${BUCKET_NAME}/latest/index.html" \
+            --content-type "text/html" \
+            --metadata "deployed=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          
+          aws s3 cp ./build/metadata.json \
+            "s3://${BUCKET_NAME}/latest/metadata.json" \
+            --content-type "application/json"
+          
+          echo ""
+          echo "✅ Successfully uploaded to S3!"
+          echo "📍 Artifact location: s3://${BUCKET_NAME}/artifacts/my-artifact-${TIMESTAMP}.zip"
+          echo "📍 Latest HTML: s3://${BUCKET_NAME}/latest/index.html"
+      
+      - name: List uploaded files
+        run: |
+          BUCKET_NAME="${{ secrets.S3_BUCKET_NAME }}"
+          echo "📂 Files in S3 bucket:"
+          aws s3 ls "s3://${BUCKET_NAME}/latest/" --recursive --human-readable
+          echo ""
+          aws s3 ls "s3://${BUCKET_NAME}/artifacts/" --recursive --human-readable | tail -5
+      
+      - name: Generate deployment summary
+        if: always()
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Repository | ${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Actor | @${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run ID | ${{ github.run_id }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Timestamp | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ✅ Deployment Status: Success" >> $GITHUB_STEP_SUMMARY
+            echo "Files successfully uploaded to S3 bucket: \`${{ secrets.S3_BUCKET_NAME }}\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ❌ Deployment Status: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "🧹 Cleaning up build artifacts..."
+          rm -rf build/
+          echo "✅ Cleanup complete"
