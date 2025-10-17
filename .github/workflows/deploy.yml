@@ -18,7 +18,7 @@ jobs:
       - name: Create artifact for testing
         run: |
           mkdir -p build
-          echo "OIDC Lab Test - $(date)" > build/index.html
+          echo "OIDC Test - $(date)" > build/index.html
           echo "Repository: ${{ github.repository }}" >> build/index.html
           echo "Commit: ${{ github.sha }}" >> build/index.html
           zip -r build/my-artifact.zip build/
@@ -27,7 +27,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          role-session-name: GitHub-OIDC-Lab
+          role-session-name: GitHub-OIDC
           aws-region: us-east-1
       
       - name: Upload to S3
